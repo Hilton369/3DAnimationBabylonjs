@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <title>Babylon Template</title>
+
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Raleway:wght@500&display=swap");
+            html, body {
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #renderCanvas {
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+            
+            .wrapper{
+                font-family: Raleway;
+                font-size: 5;
+                position: absolute;
+                right: 1%;
+                top: 0%;
+            }
+
+        </style>
+
+        <script src="https://cdn.babylonjs.com/babylon.js"></script>
+
+    </head>
+   <body>
+        <div class = "wrapper">
+            <p>Use 'w', 'a', 's' and 'd' to move the capsule.<br>
+                Sometimes the two spheres get stuck together <br>
+                so you can use the capsule to 'free' them.
+            </p>
+        </div>
+
+	<canvas id="renderCanvas"></canvas>
+
+	<script>
+        const canvas = document.getElementById("renderCanvas"); // Get the canvas element
+        const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
+
+        const createScene = function () {
+            // This creates a basic Babylon Scene object (non-mesh)
+            const scene = new BABYLON.Scene(engine);
+
+            // This creates and positions a free camera (non-mesh)
+            const camera = new BABYLON.ArcRotateCamera("camera1", -Math.PI/2, Math.PI/4, 30, new BABYLON.Vector3(0, 0, 0));
+
+            // This targets the camera to scene origin
+            camera.setTarget(BABYLON.Vector3.Zero());
+
+            // This attaches the camera to the canvas
+            camera.attachControl(canvas, true);
+            
+            // Main Directional Light
+            const mainLight = new BABYLON.DirectionalLight("directional light", new BABYLON.Vector3(0, -1, 0));
+            mainLight.intensity = 0.7;
+            mainLight.specular = new BABYLON.Color3(1, 0, 0.7);
+            mainLight.position.y = 20;
+            
+
+            // Hemispheric Light
+            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 0.4;
+            light.diffuse = new BABYLON.Color3(0, 0, 0.5);
+            light.groundColor = new BABYLON.Color3(0.8, 0.8, 1);
+
+            // Sphere - Earth
+            const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter: 4, segments: 32}, scene);
+            sphere.position.y = 6;
+            sphere.position.x = 6;
+            sphere.position.z = 6;
+            sphere.material = new BABYLON.StandardMaterial('sphere material');
+            sphere.material.diffuseColor = new BABYLON.Color3(0.6, 1, 0.6);
+            sphere.material.diffuseTexture = new BABYLON.Texture("sphere.png");
+            sphere.material.specularTexture = new BABYLON.Texture("sphere.png");
+            // Texture opacity
+            sphere.material.diffuseTexture.hasAlpha = true;
+            sphere.material.useAlphaFromDiffuseTexture = true;
+            sphere.material.useSpecularOverAlpha = true;
+
+            // Sphere - Moon
+            const moon = BABYLON.MeshBuilder.CreateSphere("moon", {diameter: 2, segments: 32}, scene);
+            moon.position.y = 2;
+            moon.position.x = -4;
+            moon.position.z = -8;
+            moon.material = new BABYLON.StandardMaterial('moon material');
+            moon.material.diffuseColor = new BABYLON.Color3(1, 1, 1);
+            moon.material.diffuseTexture = new BABYLON.Texture("moon.jpg");
+            moon.material.specularTexture = new BABYLON.Texture("moon.jpg");
+
+            // Capsule
+            const capsule = new BABYLON.MeshBuilder.CreateCapsule("capsule", {height: 4, radius: 1}, scene)
+            capsule.position.y = 3;
+            capsule.material = new BABYLON.StandardMaterial('capsule material');
+            capsule.material.diffuseColor = new BABYLON.Color3(1, 1, 1);
+            capsule.material.diffuseTexture = new BABYLON.Texture("capsule.jpg");
+            capsule.material.specularTexture = new BABYLON.Texture("capsule.jpg");
+
+            // Torus
+            const torus = BABYLON.MeshBuilder.CreateTorus("torus", {diameter: 6, thickness: 0.5}, scene);
+            torus.material = new BABYLON.StandardMaterial('torus material');
+            torus.material.diffuseColor = new BABYLON.Color3(0.6, 0.2, 0.1);
+            torus.parent = sphere;
+            
+            // Shadow Generator
+            const shadowGenerator = new BABYLON.ShadowGenerator(500, mainLight);
+            shadowGenerator.getShadowMap().renderList.push(sphere, capsule, torus, moon);
+            shadowGenerator.usePoissonSampling = true;
+
+            // Our built-in 'ground' shape.
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 30, height: 30}, scene);
+            ground.material = new BABYLON.StandardMaterial('ground material');
+            ground.material.diffuseColor = new BABYLON.Color3(0.8, 0.8, 1);
+            ground.receiveShadows = true;
+            ground.material.diffuseTexture = new BABYLON.Texture("ground.jpg");
+            ground.material.specularTexture = new BABYLON.Texture("ground.jpg");
+
+            // Keyframe Animation
+            let frameRate = 30;
+            let animationLength = 5;
+
+            // Capsule Animation
+            let capsuleYAnimation = new BABYLON.Animation("capsule y animation", "position.y", frameRate, 
+                BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_LOOP);            
+            let capsuleYKeyframe = [
+                {
+                    frame: 0,
+                    value: 3
+                },
+                {
+                    frame: animationLength * frameRate / 2,
+                    value: 10
+                },
+                {   
+                    frame: animationLength * frameRate,
+                    value: 3
+                }
+            ];
+            capsuleYAnimation.setKeys(capsuleYKeyframe);
+            let easingFunction = new BABYLON.CubicEase();
+            easingFunction.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
+            capsuleYAnimation.setEasingFunction(easingFunction);
+
+            // Action Manager
+            scene.actionManager = new BABYLON.ActionManager(scene);
+            scene.actionManager.registerAction(
+                new BABYLON.ExecuteCodeAction(
+                    BABYLON.ActionManager.OnKeyDownTrigger,
+                    function(keyinfo) {
+                        let key = keyinfo.sourceEvent.key;
+
+                        if(key == "w"){
+                            capsule_vz = 0.2;
+                        }
+                        if(key == "s"){
+                            capsule_vz = -0.2;
+                        }
+                        if(key == "a"){
+                            capsule_vx = -0.2;
+                        }
+                        if(key == "d"){
+                            capsule_vx = 0.2;
+                        }
+                    }
+                )
+            )
+            
+            // Torus Animation
+            let torusRotateAnimation = new BABYLON.Animation("torus rotate animation", "rotation", frameRate, 
+            BABYLON.Animation.ANIMATIONTYPE_VECTOR3, BABYLON.Animation.ANIMATIONLOOPMODE_LOOP);
+            let torusRotateKeyframe = [
+                {
+                    frame: 0,
+                    value: new BABYLON.Vector3(0, 0, 0)
+                },
+                {
+                    frame: frameRate * animationLength / 3,
+                    value : new BABYLON.Vector3(Math.PI/2, Math.PI/3, 0.9 * Math.PI)
+                },
+                {
+                    frame: frameRate * animationLength / 3 * 2,
+                    value : new BABYLON.Vector3(1.4 * Math.PI, Math.PI, 1.6 * Math.PI)
+                },
+                {
+                    frame: frameRate * animationLength,
+                    value: new BABYLON.Vector3(2 * Math.PI, 2 * Math.PI, 2 * Math.PI)
+                }
+            ];
+            torusRotateAnimation.setKeys(torusRotateKeyframe);
+
+            //Spheres Animation
+            let sphereRotateAnimation = new BABYLON.Animation("sphere rotate animation", "rotation.y", frameRate, 
+            BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_LOOP);
+
+            let sphereRotateKeyframe = [
+                {
+                    frame: 0,
+                    value: 0
+                },
+                {   
+                    frame: animationLength * frameRate,
+                    value: 2*Math.PI
+                }
+            ];
+            sphereRotateAnimation.setKeys(sphereRotateKeyframe);
+
+            let sphere_vx = 0.1;
+            let sphere_vy = -0.1;
+            let sphere_vz = -0.1;
+
+            let moon_vx = 0.2;
+            let moon_vy = -0.2;
+            let moon_vz = 0.2;
+
+            let capsule_vx = 0;
+            let capsule_vz = 0;
+
+            sphere.computeWorldMatrix(true);
+            ground.computeWorldMatrix(true);
+            moon.computeWorldMatrix(true);
+            capsule.computeWorldMatrix(true);
+            
+
+            scene.registerBeforeRender(function(){
+                sphere.position.x += sphere_vx;
+                sphere.position.y += sphere_vy;
+                sphere.position.z += sphere_vz;
+
+                moon.position.x += moon_vx;
+                moon.position.y += moon_vy;
+                moon.position.z += moon_vz;
+
+                capsule.position.x += capsule_vx;
+                capsule.position.z += capsule_vz;
+
+                if(sphere.intersectsMesh(ground, true) || sphere.position.y >= 10){
+                    sphere_vy = -sphere_vy;
+                    sphere.position.y += 1.1 * sphere_vy;
+                }
+
+                if(sphere.position.x + 2 >= 15 || sphere.position.x - 2 <= -15){
+                    sphere_vx = -sphere_vx;
+                }
+
+                if(sphere.position.z + 2 >= 15 || sphere.position.z - 2 <= -15){
+                    sphere_vz = -sphere_vz;
+                }
+
+                if(moon.intersectsMesh(ground, true) || moon.position.y >= 10){
+                    moon_vy = -moon_vy;
+                    moon.position.y += 1.1 * moon_vy;
+                }
+
+                if(moon.position.x + 1 >= 15 || moon.position.x - 1 <= -15){
+                    moon_vx = -moon_vx;
+                }
+
+                if(moon.position.z + 1 >= 15 || moon.position.z - 1 <= -15){
+                    moon_vz = -moon_vz;
+                }
+
+                if(capsule.position.x + 1 >= 15 || capsule.position.x - 1 <= -15){
+                    capsule_vx = -capsule_vx;
+                }
+
+                if(capsule.position.z + 1 >= 15 || capsule.position.z - 1 <= -15){
+                    capsule_vz = -capsule_vz;
+                }
+                
+                if(sphere.intersectsMesh(moon, true)){
+                    sphere_vy = -sphere_vy;
+                    sphere_vx = -sphere_vx;
+                    sphere_vz = -sphere_vz;
+                    moon_vy = -moon_vy;
+                    moon_vx = -moon_vx;
+                    moon_vz = -moon_vz;
+                    sphere.position.x += 1.1 * sphere_vx;
+                    sphere.position.y += 1.1 * sphere_vy;
+                    sphere.position.z += 1.1 * sphere_vz;
+                    moon.position.x += 1.1 * moon_vx;
+                    moon.position.y += 1.1 * moon_vy;
+                    moon.position.z += 1.1 * moon_vz;
+                }
+
+                if(sphere.intersectsMesh(capsule, true)){
+                    sphere_vy = -sphere_vy;
+                    sphere_vx = -sphere_vx;
+                    sphere_vz = -sphere_vz;
+                    sphere.position.x += 1.1 * sphere_vx;
+                    sphere.position.y += 1.1 * sphere_vy;
+                    sphere.position.z += 1.1 * sphere_vz;
+                }
+
+                if(moon.intersectsMesh(capsule, true)){
+                    console.log("collision");
+                    moon_vy = -moon_vy;
+                    moon_vx = -moon_vx;
+                    moon_vz = -moon_vz;
+                    moon.position.x += 1.1 * moon_vx;
+                    moon.position.y += 1.1 * moon_vy;
+                    moon.position.z += 1.1 * moon_vz;
+                }
+            });
+
+            
+            scene.beginDirectAnimation(capsule, [capsuleYAnimation], 0, animationLength * frameRate, true);
+            scene.beginDirectAnimation(torus, [torusRotateAnimation], 0, animationLength * frameRate, true);
+            scene.beginDirectAnimation(sphere, [sphereRotateAnimation], 0, animationLength * frameRate, true);
+
+
+
+            scene.clearColor = new BABYLON.Color3(1, 0.9, 0.9);
+
+            return scene;
+        };
+
+        const scene = createScene(); //Call the createScene function
+
+        // Register a render loop to repeatedly render the scene
+        engine.runRenderLoop(function () {
+                scene.render();
+        });
+
+        // Watch for browser/canvas resize events
+        window.addEventListener("resize", function () {
+                engine.resize();
+        });
+	</script>
+
+   </body>
+
+</html>
